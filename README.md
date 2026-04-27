@@ -1,82 +1,110 @@
-# Codon Optimizer for *Ralstonia eutropha* H16
+# Ralstonia Codon Optimizer
 
-针对 *Ralstonia eutropha* H16（*Cupriavidus necator* H16）的反向翻译 + 密码子优化工具。
+A reverse-translation and codon-optimization tool tailored for ***Ralstonia eutropha* H16** (*Cupriavidus necator* H16).
 
-## 安装依赖
+Given a protein sequence, it produces a DNA sequence using the host's codon usage bias, while avoiding restriction sites, GC-content extremes, long homopolymers, and Shine-Dalgarno-like motifs.
+
+## Requirements
 
 ```bash
 pip install biopython
 ```
 
-## 使用方法
+Python 3.8+.
 
-### 1. 交互模式（推荐）
+## Usage
 
-直接跑，按提示选参数：
+### Interactive mode (recommended)
 
 ```bash
-python E:/codon_optimizer/codon_optimizer.py
+python codon_optimizer.py
 ```
 
-会依次询问：
-1. 蛋白序列（FASTA 路径 或 直接粘贴）
-2. 禁用酶切位点：`a` 常见克隆位点 / `b` 完整列表 / `c` 自定义 / `n` 不禁用
-3. 是否补 ATG 起始 / 终止密码子
-4. GC 上下界（默认 45%-75%）
-5. 最大连续同碱基（默认 6）+ 是否避免 SD 序列（AGGAGG）
-6. 输出目录
+Walks you through every parameter:
+1. Protein input (FASTA path or pasted sequence)
+2. Forbidden enzymes: `a` common cloning sites / `b` full list / `c` custom names / `n` none
+3. Auto-add ATG start / stop codon
+4. GC bounds (default 40%–75%)
+5. Max homopolymer length (default 6) + AGGAGG (Shine-Dalgarno) avoidance
+6. Output folder
 
-### 2. 命令行模式
+### CLI mode
 
 ```bash
 python codon_optimizer.py -i protein.fasta --enzymes common --gc-low 45 --gc-high 75
 ```
 
-主要参数：
+Custom enzyme set:
 
-| 参数 | 默认 | 说明 |
+```bash
+python codon_optimizer.py -i protein.fasta --enzymes custom --custom-enzymes "BsaI,BbsI"
+```
+
+| Flag | Default | Meaning |
 |---|---|---|
-| `-i` | (必填) | FASTA 文件 或 直接传蛋白序列字符串 |
-| `-o` | `E:/codon_optimizer/output` | 输出基目录 |
-| `--enzymes` | `common` | `common` / `full` / `none` |
-| `--gc-low` | 45 | GC 下界（%） |
-| `--gc-high` | 75 | GC 上界（%） |
-| `--max-homopolymer` | 6 | 允许的最大连续同碱基 |
-| `--no-sd-check` | off | 关闭 AGGAGG 检查 |
-| `--no-atg` | off | 不自动加 ATG |
-| `--no-stop` | off | 不自动加终止密码子 |
-| `--seed` | None | 固定随机种子（结果可复现） |
+| `-i` | (required) | FASTA path or raw protein-sequence string |
+| `-o` | `E:/codon_optimizer/output` | Output base folder |
+| `--enzymes` | `common` | `common` / `full` / `custom` / `none` |
+| `--custom-enzymes` | `""` | Comma-separated names, used with `--enzymes custom` |
+| `--gc-low` | 40 | GC% lower bound |
+| `--gc-high` | 75 | GC% upper bound |
+| `--max-homopolymer` | 6 | Max consecutive identical nt allowed |
+| `--no-sd-check` | off | Skip AGGAGG (Shine-Dalgarno) avoidance |
+| `--no-atg` | off | Do not auto-add ATG start codon |
+| `--no-stop` | off | Do not auto-add stop codon |
+| `--seed` | None | RNG seed for reproducibility |
+| `--min-site-length` | 6 | Skip enzyme sites shorter than this many nt |
 
-## 输出
+## Output
 
-每次跑完会在 `output/<name>/` 下生成：
-- `<name>_optimized.fasta` —— 优化后的 DNA 序列
-- `<name>_report.txt` —— GC%、翻译验证、移除的酶切位点列表、密码子使用统计
+Every run writes two files into `output/<name>/`:
+- `<name>_optimized.fasta` — the optimized DNA sequence
+- `<name>_report.txt` — GC%, translation check, removed-site list, codon-usage breakdown
 
-## 内置酶切列表
+## Built-in enzyme sets
 
-- `common`：13 个常见克隆酶（EcoRI / BamHI / HindIII / XhoI / NdeI / NcoI / NotI / XbaI / SpeI / PstI / KpnI / SacI / SalI）
-- `full`：完整列表（用户提供的 200+ 酶名串），通过 Biopython `Restriction_Dictionary` 解析
+- `common` — 13 frequent cloning enzymes: EcoRI, BamHI, HindIII, XhoI, NdeI, NcoI, NotI, XbaI, SpeI, PstI, KpnI, SacI, SalI
+- `full` — 200+ enzymes parsed from a built-in concatenated name string, resolved via Biopython's `Restriction_Dictionary`
+- `custom` — comma-separated names you provide
+- `none` — disable site avoidance
 
-### 实用建议
+### Practical guidance
 
-| 场景 | 推荐设置 |
+| Scenario | Recommended setting |
 |---|---|
-| 日常基因（任意长度） | `--enzymes common`（13 个位点） |
-| 短基因（< 100 aa）严格设计 | `--enzymes full`（默认 `--min-site-length 6`，~115 位点） |
-| 长基因（> 300 aa）严格设计 | `--enzymes full --min-site-length 7`（~30 位点） |
-| 优化失败时 | 提高 `--min-site-length` / 改用 `common` / 拉宽 `--gc-low/--gc-high` |
+| Everyday gene of any length | `--enzymes common` (13 sites) |
+| Short gene (< 100 aa), strict design | `--enzymes full` (default `--min-site-length 6`, ~115 sites) |
+| Long gene (> 300 aa), strict design | `--enzymes full --min-site-length 7` (~30 sites) |
+| Optimization fails | Raise `--min-site-length`, switch to `common`, or widen the GC range |
 
-**关于 `full` 模式**：默认跳过 ≤5 nt 位点（含退化 5-cutter 如 CCNGG/CCWGG）。原因：高 GC 长序列下 4-cutter 平均每 256bp 出现一次，几乎不可能全部避开。需严格模式可加 `--min-site-length 1`，但仅推荐用于 < 100 aa 短肽。
+**About `full` mode:** sites of length ≤ 5 (including degenerate 5-cutters such as `CCNGG`, `CCWGG`) are skipped by default. In a high-GC long sequence, 4-cutters appear once every ~256 bp on average, so avoiding all of them is mathematically infeasible. Pass `--min-site-length 1` for strict mode (only realistic for peptides < 100 aa).
 
-## 算法
+## Algorithm
 
-加权随机选择 + 局部回溯：
-1. 按密码子使用频率加权随机抽
-2. 每加一个密码子检查最近 50 nt 窗口：禁用酶切位点（双链）/ 同碱基长串 / SD 序列 / GC 滑窗
-3. 失败回溯 1-3 个密码子重选；多次失败重启（最多 200 次）
-4. 完成后做全局校验 + 反向翻译比对蛋白
+Weighted random codon picking with local backtracking:
+1. For each amino acid, draw a candidate codon weighted by host usage frequency.
+2. After each codon, check the trailing 50-nt window:
+   - No forbidden restriction site (both strands, IUPAC-aware regex)
+   - No homopolymer longer than the threshold
+   - No AGGAGG
+   - GC content within bounds
+3. On failure, retry with the remaining codons; if all fail at this position, undo 2–8 codons and resume.
+4. Restart from scratch up to 200 times if backtracking exhausts.
+5. Final check: full-sequence scan for forbidden sites + reverse-translation match against the input protein.
 
-## 密码子使用表
+## Codon usage table
 
-来自 Kazusa Codon Usage Database (taxid 381666) 的近似值。GC-rich 偏好显著（GCG/CGC/AAC/GAC/CTG/CCG 等占主导）。如需更新，编辑 `CODON_USAGE` 字典即可。
+Approximate fractions per amino acid derived from the Kazusa Codon Usage Database for *Cupriavidus necator* H16 (NCBI taxid 381666). High-GC bias is reflected in the dominance of GCG (Ala), CGC (Arg), AAC (Asn), GAC (Asp), GGC (Gly), CTG (Leu), CCG (Pro), and so on. To update with newer data, edit the `CODON_USAGE` dict at the top of `codon_optimizer.py`.
+
+## Repository layout
+
+```
+codon_optimizer/
+├── codon_optimizer.py   # main script (single file)
+├── README.md            # this file
+└── .gitignore
+```
+
+## License
+
+MIT (or update as needed).
