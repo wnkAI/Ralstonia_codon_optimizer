@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+.omc/
+output/
+test_bsa.fasta
+rubisco_lsu.fasta
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
