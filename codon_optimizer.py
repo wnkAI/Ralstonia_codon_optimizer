@@ -271,11 +271,14 @@ def translate(dna: str) -> str:
 
 
 def find_all_forbidden_sites(seq: str, forbidden_sites: dict):
+    """Locate all (overlapping) forbidden-site matches; report 1-based positions."""
     hits = []
     for site, enzymes in forbidden_sites.items():
-        pat = site_to_regex(site)
-        for m in pat.finditer(seq):
-            hits.append((m.start() + 1, m.group(), site, ','.join(enzymes)))
+        inner = site_to_regex(site).pattern
+        overlap_pat = re.compile(f'(?=({inner}))')
+        for m in overlap_pat.finditer(seq):
+            matched = m.group(1)
+            hits.append((m.start() + 1, matched, site, ','.join(enzymes)))
     return sorted(hits)
 
 
@@ -288,6 +291,8 @@ def codon_usage_summary(seq: str) -> dict:
 
 
 def read_protein(path_or_text: str):
+    """Parse FASTA file, FASTA-formatted string, or raw protein string.
+    Raises ValueError on multi-record FASTA, empty input, or invalid AA."""
     p = Path(path_or_text)
     try:
         is_file = p.exists() and p.is_file()
@@ -295,13 +300,40 @@ def read_protein(path_or_text: str):
         is_file = False
     if is_file:
         text = p.read_text()
-        if text.lstrip().startswith('>'):
-            lines = text.splitlines()
-            name = lines[0].lstrip('>').split()[0]
-            seq = ''.join(l.strip() for l in lines[1:] if not l.startswith('>'))
-            return name, re.sub(r'\s+', '', seq).upper()
-        return p.stem, re.sub(r'\s+', '', text).upper()
-    return 'protein', re.sub(r'\s+', '', path_or_text).upper()
+        source_name = p.stem
+    else:
+        text = path_or_text
+        source_name = 'protein'
+
+    text = text.strip()
+    if not text:
+        raise ValueError("Empty protein input.")
+
+    if text.startswith('>'):
+        lines = text.splitlines()
+        header_count = sum(1 for l in lines if l.lstrip().startswith('>'))
+        if header_count > 1:
+            raise ValueError(
+                f"Multi-record FASTA detected ({header_count} records). "
+                "Provide a single sequence per run."
+            )
+        name = lines[0].lstrip('>').strip().split()[0] if lines[0].lstrip('>').strip() else source_name
+        seq_lines = [l for l in lines[1:] if not l.lstrip().startswith('>')]
+        seq = ''.join(seq_lines)
+    else:
+        name = source_name
+        seq = text
+
+    seq = re.sub(r'\s+', '', seq).upper()
+    if not seq:
+        raise ValueError("No sequence content found after parsing.")
+    invalid = sorted(set(seq) - set(CODON_USAGE.keys()))
+    if invalid:
+        raise ValueError(
+            f"Invalid amino acid character(s) in input: {invalid}. "
+            "Standard 20 AAs (and '*' for stop) are accepted."
+        )
+    return name, seq
 
 
 def write_output(out_dir: Path, name: str, dna: str, protein: str,
@@ -309,7 +341,7 @@ def write_output(out_dir: Path, name: str, dna: str, protein: str,
     out_dir.mkdir(parents=True, exist_ok=True)
 
     fasta_path = out_dir / f'{name}_optimized.fasta'
-    with fasta_path.open('w') as f:
+    with fasta_path.open('w', encoding='utf-8') as f:
         f.write(f'>{name}_optimized_REH16\n')
         for i in range(0, len(dna), 60):
             f.write(dna[i:i + 60] + '\n')
@@ -381,9 +413,14 @@ def interactive_mode():
             if not l:
                 break
             lines.append(l)
-        name, protein = read_protein('\n'.join(lines))
+        raw = '\n'.join(lines)
     else:
-        name, protein = read_protein(inp)
+        raw = inp
+    try:
+        name, protein = read_protein(raw)
+    except ValueError as e:
+        print(f"   Error: {e}")
+        return
     print(f"   -> name='{name}', length={len(protein)} aa\n")
 
     print("2. Forbidden restriction sites")
@@ -427,7 +464,7 @@ def interactive_mode():
     print()
 
     print("6. Output")
-    default_out = f"E:/codon_optimizer/output/{name}"
+    default_out = f"./output/{name}"
     out_dir = Path(_ask("Output folder", default_out))
     print()
 
@@ -465,7 +502,11 @@ def interactive_mode():
 
 
 def cli_main(args):
-    name, protein = read_protein(args.input)
+    try:
+        name, protein = read_protein(args.input)
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
     if args.enzymes == 'common':
         enzyme_names = list(COMMON_CLONING_SITES)
     elif args.enzymes == 'full':
@@ -521,8 +562,8 @@ def main():
         description='Codon optimizer for Ralstonia eutropha H16'
     )
     parser.add_argument('-i', '--input', help='FASTA file path or protein sequence string')
-    parser.add_argument('-o', '--output', default='E:/codon_optimizer/output',
-                        help='Output base folder (default: E:/codon_optimizer/output)')
+    parser.add_argument('-o', '--output', default='./output',
+                        help='Output base folder (default: ./output, relative to cwd)')
     parser.add_argument('--enzymes', choices=['common', 'full', 'none', 'custom'], default='common',
                         help='Enzyme set to forbid (default: common). Use "custom" with --custom-enzymes.')
     parser.add_argument('--custom-enzymes', default='',
@@ -541,7 +582,7 @@ def main():
                              'unavoidable). Set to 1 for strict mode.')
     args = parser.parse_args()
 
-    if not args.input:
+    if args.input is None:
         interactive_mode()
     else:
         cli_main(args)

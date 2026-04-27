@@ -43,7 +43,7 @@ python codon_optimizer.py -i protein.fasta --enzymes custom --custom-enzymes "Bs
 | Flag | Default | Meaning |
 |---|---|---|
 | `-i` | (required) | FASTA path or raw protein-sequence string |
-| `-o` | `E:/codon_optimizer/output` | Output base folder |
+| `-o` | `./output` | Output base folder (relative to cwd) |
 | `--enzymes` | `common` | `common` / `full` / `custom` / `none` |
 | `--custom-enzymes` | `""` | Comma-separated names, used with `--enzymes custom` |
 | `--gc-low` | 40 | GC% lower bound |
