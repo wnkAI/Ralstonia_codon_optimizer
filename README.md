@@ -12,6 +12,60 @@ pip install biopython
 
 Python 3.8+.
 
+## Quick start
+
+Clone, install Biopython, and run on a single-record FASTA file:
+
+```bash
+git clone https://github.com/wnkAI/Ralstonia_codon_optimizer.git
+cd Ralstonia_codon_optimizer
+pip install biopython
+
+# Minimal example: avoid Golden Gate enzymes BsaI and BbsI
+python codon_optimizer.py \
+  -i my_protein.fasta \
+  --enzymes custom --custom-enzymes "BsaI,BbsI" \
+  --seed 42
+```
+
+Two files are written under `./output/<name>/`:
+- `<name>_optimized.fasta` — the codon-optimized DNA sequence
+- `<name>_report.txt` — GC%, translation check, removed-site list, codon-usage breakdown
+
+### Worked example
+
+Input FASTA `rubisco_lsu.fasta` (RuBisCO large subunit, 460 aa):
+
+```
+>RuBisCO_LSU
+MDQSNRYADLSLKEEDLIKGGNHILVAYTMEPAAGVGYLEAAAHIAAESSTGTNVEVSTT
+DEFTKGVDALVYFIDEAKGIMKVAYPNDLFDRNVTDGRVMIVSFLTLCIGNNQGMGDIAN
+...
+```
+
+Run:
+
+```bash
+python codon_optimizer.py -i rubisco_lsu.fasta \
+  --enzymes custom --custom-enzymes "BsaI,BbsI" --seed 42
+```
+
+Resulting report (excerpt):
+
+```
+Sequence name : RuBisCO_LSU
+Host          : Ralstonia eutropha H16 (Cupriavidus necator H16)
+Protein length: 460 aa
+DNA length    : 1380 nt
+GC content    : 58.62%
+Translation   : MATCH
+
+Forbidden enzyme sites checked: 2
+Forbidden sites in output     : 0
+```
+
+`Translation : MATCH` confirms the back-translated protein matches the input. `Forbidden sites in output : 0` confirms no BsaI / BbsI recognition sites are present on either strand.
+
 ## Usage
 
 ### Interactive mode (recommended)
